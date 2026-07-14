@@ -1,84 +1,231 @@
 "use client";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useEffect, useMemo, useState } from "react";
-
-type Card = {
-  scene: string; icon: string; context: string; prompt: string; answer: string;
-  chunks: { text: string; meaning: string }[]; hint: string; followUp: string;
+type Card={scene:string;icon:string;context:string;prompt:string;answer:string;hint:string;followUp:string};
+const raw:[string,string,string,string,string,string,string][]=[
+["咖啡店","☕","在柜台点单","我想要一杯中杯拿铁，少糖，带走。","Could I get a medium latte, less sweet, to go?","Could I get / less sweet / to go","店员问 Anything else? 回答：不用了，就这些，谢谢。"],
+["咖啡店","☕","确认饮料","不好意思，这是我的拿铁吗？","Excuse me, is this my latte?","Excuse me / is this my","名字不对，表示你可以再等一会儿。"],
+["咖啡店","☕","询问选择","你们有什么不含咖啡因的饮料？","What decaf drinks do you have?","What / decaf drinks / have","询问能否换成燕麦奶。"],
+["餐厅","🍜","还没决定好吃什么","我们还需要一点时间，可以等会儿再来吗？","We need a little more time. Could you come back in a few minutes?","need more time / come back","你准备好了，请服务员点餐。"],
+["餐厅","🍜","和朋友结账","我们可以分开结账吗？","Could we split the bill, please?","Could we / split the bill","改成：今天我请客，我来付。"],
+["餐厅","🍜","食物有问题","不好意思，我点的不是这个。","Sorry, this isn't what I ordered.","isn't / what I ordered","说明你点的是鸡肉，不是牛肉。"],
+["餐厅","🍜","预订座位","我想订一张今晚七点两个人的桌。","I'd like to book a table for two at seven tonight.","I'd like to book / table for two","询问有没有靠窗的位置。"],
+["购物","🛍️","试穿衣服","这件有大一码的吗？我可以试穿吗？","Do you have this in a larger size? Could I try it on?","larger size / try it on","试完后说：我再考虑一下。"],
+["购物","🛍️","询问价格","这个打折吗？","Is this on sale?","Is this / on sale","询问打折后多少钱。"],
+["购物","🛍️","退换商品","我昨天买了这个，但它坏了。我可以换一个吗？","I bought this yesterday, but it's faulty. Could I exchange it?","bought yesterday / faulty / exchange","改成要求退款。"],
+["购物","🛍️","寻找商品","请问洗发水在哪个区域？","Excuse me, which aisle is the shampoo in?","which aisle / shampoo","询问店员能否带你过去。"],
+["出行","🚇","地铁换乘","去市中心我应该在哪里换乘？","Where should I transfer to get downtown?","where should I / transfer","确认是否需要再买一张票。"],
+["出行","🚕","乘坐出租车","麻烦送我到这个地址，我有点赶时间。","Could you take me to this address? I'm in a bit of a hurry.","take me to / in a hurry","请司机开慢一点。"],
+["出行","🚌","确认公交路线","这辆公交车到火车站吗？","Does this bus go to the train station?","Does this bus / go to","询问大约需要多久。"],
+["出行","✈️","机场值机","我可以要一个靠过道的座位吗？","Could I have an aisle seat, please?","Could I have / aisle seat","询问行李是否需要托运。"],
+["出行","🚆","火车晚点","请问这班火车晚点多久？","Excuse me, how long is the delay?","how long / delay","询问应该去哪个站台。"],
+["工作","💻","会议中没听懂","抱歉，我不太明白。你能举个例子吗？","Sorry, I'm not quite following. Could you give me an example?","not quite following / example","确认：所以我们要推迟，对吗？"],
+["工作","💻","询问下班时间","你今天几点下班？","What time do you get off work today?","what time / get off work","询问对方下班后有没有安排。"],
+["工作","💻","询问截止时间","这个最晚什么时候要完成？","When is the latest this needs to be finished?","when is the latest / finished","请求多给一天时间。"],
+["工作","💻","请求帮忙","你有空的时候能帮我看一下这个吗？","Could you take a look at this when you have a moment?","take a look / have a moment","说明事情不着急。"],
+["工作","💻","汇报进展","我还在处理，今天下班前会发给你。","I'm still working on it. I'll send it to you by the end of the day.","still working / by end of day","说明你需要更多时间。"],
+["请假","🗓️","身体不舒服","我今天身体不舒服，想请一天病假。","I'm not feeling well today, so I'd like to take a sick day.","not feeling well / take a sick day","说明明天应该可以回来。"],
+["请假","🗓️","提前请假","我下周五需要请一天假。","I need to take next Friday off.","take / Friday off","说明有一个家庭安排。"],
+["请假","🗓️","临时早退","我今天可以早点走吗？我有个医生预约。","Would it be okay if I left early today? I have a doctor's appointment.","Would it be okay / left early","承诺晚些时候补上工作。"],
+["请假","🗓️","申请居家办公","我今天可以在家办公吗？","Would it be possible for me to work from home today?","Would it be possible / work from home","说明你需要等维修人员。"],
+["社交","👋","婉拒邀请","谢谢你邀请我，但周五我可能不行。周六怎么样？","Thanks for inviting me, but Friday might not work for me. How about Saturday?","thanks for inviting / might not work","建议改天再约。"],
+["社交","👋","初次见面","你是怎么认识大家的？","How do you know everyone here?","How do you know / everyone","询问对方是不是住在附近。"],
+["社交","👋","结束聊天","和你聊天很开心，我们保持联系吧。","It was great talking to you. Let's keep in touch.","great talking / keep in touch","礼貌表示你得先走了。"],
+["邻里","🏠","音乐太响","抱歉打扰，能把音乐调小一点吗？","Sorry to bother you, but could you turn the music down a little?","sorry to bother / turn down","感谢邻居理解。"],
+["邻里","🏠","借用物品","你有梯子可以借我一下吗？","Do you have a ladder I could borrow?","Do you have / could borrow","承诺明天归还。"],
+["电话","📞","信号不好","这里信号不太好。你能再说一遍吗？","The signal isn't very good here. Could you say that again?","signal / say that again","表示你晚点回电话。"],
+["电话","📞","找某人接电话","你好，请问王先生在吗？","Hi, is Mr. Wang available?","is / available","请对方帮忙留言。"],
+["求助","🧭","问路","你知道去火车站怎么走吗？","Excuse me, do you know how to get to the train station?","know how to get to","确认走路需要多久。"],
+["求助","🧭","请求拍照","不好意思，能帮我们拍张照片吗？","Excuse me, could you take a photo of us?","could you / take a photo","请对方再拍一张。"],
+["看病","🏥","描述症状","我从昨天开始一直头疼，还有点发烧。","I've had a headache since yesterday, and I have a slight fever.","have had / since yesterday / fever","说明你没有咳嗽。"],
+["看病","🏥","预约医生","我想预约这周看医生。","I'd like to make an appointment to see a doctor this week.","make an appointment / see a doctor","询问最早的时间。"],
+["看病","🏥","询问药物","这个药一天吃几次？","How many times a day should I take this?","how many times a day / take","询问是否需要随餐服用。"],
+["快递","📦","查询包裹","我的包裹应该昨天到，但还没收到。","My package was supposed to arrive yesterday, but it hasn't arrived yet.","supposed to arrive / hasn't yet","询问能否帮你查询。"],
+["快递","📦","错过配送","我错过了配送，可以重新安排吗？","I missed the delivery. Could I reschedule it?","missed delivery / reschedule","要求安排在周六。"],
+["维修","🔧","家中漏水","厨房水槽下面漏水了，能派人来看看吗？","There's a leak under the kitchen sink. Could you send someone to take a look?","there's a leak / send someone","询问最早什么时候能来。"],
+["维修","🔧","网络故障","我的网络从今天早上开始就不能用了。","My internet hasn't been working since this morning.","hasn't been working / since","说明你已经重启过路由器。"],
+["住房","🏡","询问房租","房租包含水电费吗？","Are utilities included in the rent?","utilities / included / rent","询问押金是多少。"],
+["住房","🏡","报告噪音","楼上的噪音每天晚上都很大。","There's a lot of noise from upstairs every night.","noise from upstairs / every night","询问物业能否处理。"],
+["银行","🏦","银行卡问题","我的银行卡被机器吞了。","The ATM kept my card.","ATM / kept my card","询问需要怎么取回。"],
+["银行","🏦","转账未到账","我昨天转了账，但对方还没收到。","I made a transfer yesterday, but the recipient hasn't received it yet.","made a transfer / recipient / hasn't received","请工作人员帮忙查询。"],
+["酒店","🏨","办理入住","你好，我有一个王先生名下的预订。","Hi, I have a reservation under the name Wang.","reservation / under the name","询问早餐几点开始。"],
+["酒店","🏨","房间有问题","房间里的空调不工作。","The air conditioning in my room isn't working.","air conditioning / isn't working","请求换一个房间。"],
+["预约","📅","理发预约","我想预约周六下午剪头发。","I'd like to book a haircut for Saturday afternoon.","book a haircut / Saturday afternoon","询问三点是否有空。"],
+["预约","📅","取消预约","我需要取消明天的预约。","I need to cancel my appointment for tomorrow.","cancel / appointment","询问能否改到下周。"],
+["日常","🌤️","询问时间","现在几点了？","What time is it?","what time / is it","询问这里什么时候关门。"],
+["日常","🌤️","借过一下","不好意思，能让我过去吗？","Excuse me, could I get through?","Excuse me / get through","在人群中礼貌说借过。"],
+["日常","🌤️","物品丢失","我好像把钥匙落在这里了。","I think I may have left my keys here.","may have left / keys","描述钥匙的样子。"],
+["日常","🌤️","听不懂","你能说慢一点吗？","Could you speak a little more slowly?","speak / more slowly","请求换一种说法。"],
+];
+const cards:Card[]=raw.map(([scene,icon,context,prompt,answer,hint,followUp])=>({scene,icon,context,prompt,answer,hint,followUp}));
+type Progress=Record<number,{level:number;due:number;misses:number}>;
+const scenes=["全部",...Array.from(new Set(cards.map(c=>c.scene)))];
+type ExamTask={type:string;question:string;starter:string;frame:string[];sample:string};
+const examTasks:ExamTask[]=[
+ {type:"Task 1 · 给建议",question:"Your friend has just moved to a new city and feels lonely. What advice would you give?",starter:"If I were you, I'd start by...",frame:["建议：If I were you, I'd...","理由：The main reason is that...","例子：For example, you could...","鼓励：It may feel difficult at first, but..."],sample:"If I were you, I'd join a local club or class. The main reason is that shared activities make it easier to meet people naturally. For example, you could try a fitness class or a language exchange. It may feel difficult at first, but after a few visits, you'll start seeing familiar faces."},
+ {type:"Task 1 · 给建议",question:"Your coworker is often late and is worried about losing their job. What should they do?",starter:"The first thing I'd suggest is...",frame:["首要建议：The first thing I'd suggest is...","解释：That way, ...","第二建议：I'd also recommend...","结果：This should help you..."],sample:"The first thing I'd suggest is talking honestly with your manager. That way, you can explain the situation before it becomes a bigger problem. I'd also recommend leaving home earlier and setting two alarms. This should help you arrive on time and rebuild your manager's trust."},
+ {type:"Task 2 · 个人经历",question:"Talk about a time when you helped someone solve a problem.",starter:"One experience that stands out happened when...",frame:["背景：One experience that stands out...","问题：The problem was that...","行动：So I decided to...","结果/感受：In the end..."],sample:"One experience that stands out happened when my neighbor locked herself out. The problem was that her phone and keys were both inside. So I called the building manager and waited with her. In the end, she got back in safely, and I was glad I could help."},
+ {type:"Task 3 · 描述场景",question:"Describe a busy public park on a sunny weekend.",starter:"This is a lively scene with...",frame:["总览：This is a lively scene with...","前景：In the foreground...","背景：In the background...","推测：They seem to be..."],sample:"This is a lively scene with people enjoying a sunny day. In the foreground, a family is having a picnic while two children are playing with a ball. In the background, several people are jogging along a path. Everyone seems relaxed and happy to be outdoors."},
+ {type:"Task 4 · 预测",question:"A family is having a picnic, but dark clouds are approaching. What do you think will happen next?",starter:"I think the most likely outcome is that...",frame:["预测：I think the most likely outcome is...","依据：I say this because...","接下来：They'll probably...","结局：Eventually..."],sample:"I think the most likely outcome is that it will start raining soon. I say this because the sky is getting dark and the wind is picking up. They'll probably pack their food quickly and run to their car. Eventually, they may continue the picnic at home."},
+ {type:"Task 5 · 比较与说服",question:"Convince your friend to take public transit instead of driving downtown.",starter:"I really think we should...",frame:["立场：I really think we should...","理由一：First of all...","理由二：On top of that...","回应顾虑：I know..., but..."],sample:"I really think we should take public transit downtown. First of all, parking is expensive and difficult to find. On top of that, the train will let us avoid traffic. I know driving feels more convenient, but we'll probably arrive faster and feel less stressed by taking the train."},
+ {type:"Task 6 · 处理困难",question:"A restaurant delivered the wrong order. Call and ask them to fix the problem.",starter:"Hi, I'm calling about an issue with...",frame:["说明来意：I'm calling about an issue with...","具体问题：I ordered..., but...","合理诉求：Could you please...?","确认：Could you let me know...?"],sample:"Hi, I'm calling about an issue with my delivery. I ordered a chicken meal, but I received a beef meal instead. Could you please send the correct order as soon as possible? Also, could you let me know how long the replacement will take?"},
+ {type:"Task 7 · 表达观点",question:"Should employers allow staff to work from home several days a week?",starter:"In my view, employers should...",frame:["观点：In my view...","核心理由：The main reason is...","例证：For instance...","让步总结：Although..., I still believe..."],sample:"In my view, employers should allow staff to work from home several days a week. The main reason is that it saves commuting time and can improve focus. For instance, employees may use that extra time to rest or exercise. Although teamwork sometimes requires meeting in person, a flexible schedule offers the best balance."},
+ {type:"Task 8 · 描述异常情况",question:"You see a car parked inside a public playground. Describe the unusual situation to a city employee.",starter:"I'm calling to report something unusual...",frame:["地点：I'm at...","异常：What is unusual is that...","细节：The vehicle appears to...","请求：Could someone please...?"],sample:"I'm calling to report something unusual at Riverside Playground. A car is parked inside the children's play area, right beside the swings. The vehicle appears to be empty, but it is blocking a walkway and could be dangerous for children. Could someone please come and investigate as soon as possible?"},
+];
+const sample5s=[
+ "If I were you, I'd join a local club. It's a good way to meet people with the same interests. For example, you could take a fitness class. You may feel nervous at first, but it will get easier.",
+ "The first thing I'd suggest is talking to your manager. Explain why you have been late and say sorry. You should also leave home earlier and set an alarm. This can help you arrive on time.",
+ "I helped my neighbor when she locked herself out. Her keys and phone were inside. I called the building manager and waited with her. In the end, she got back into her home safely.",
+ "This is a busy park on a sunny day. A family is having a picnic in the front. Some children are playing with a ball, and people are jogging behind them. Everyone looks happy.",
+ "I think it will rain soon because the clouds are very dark. The family will probably pack their food and go to the car. They may finish their picnic at home.",
+ "I think we should take public transit. Parking downtown is expensive, and traffic is usually bad. The train is cheaper and less stressful, so it is a better choice.",
+ "Hi, I'm calling about my delivery. I ordered chicken, but I received beef. Could you send the correct meal, please? Please tell me how long it will take.",
+ "I think employees should work from home a few days a week. They can save travel time and focus better. However, they should still go to the office for important meetings."
+ ,"I'm calling about something unusual at Riverside Playground. There is a car beside the swings. It is blocking the path and may be dangerous. Could someone please come and check it?"
+];
+const ieltsTasks:ExamTask[]=[
+ {type:"IELTS Part 1 · 工作与学习",question:"Do you work or are you a student? What do you enjoy about it?",starter:"At the moment, I...",frame:["直接回答：At the moment, I...","具体内容：My main focus is...","喜欢之处：What I enjoy most is...","简短原因：because..."],sample:"At the moment, I work in online retail, where my main focus is managing products and customer needs. What I enjoy most is solving practical problems because every day brings a different challenge. It can be demanding, but it has taught me to stay organized and communicate clearly."},
+ {type:"IELTS Part 1 · 家乡",question:"What do you like most about your hometown?",starter:"What I like most about my hometown is...",frame:["答案：What I like most is...","细节：It is known for...","个人联系：I especially enjoy...","原因：because..."],sample:"What I like most about my hometown is how convenient it is. It has reliable public transport, plenty of small restaurants, and several parks close to residential areas. I especially enjoy walking by the river in the evening because it helps me unwind after a busy day."},
+ {type:"IELTS Part 1 · 日常习惯",question:"How do you usually spend your weekends?",starter:"I usually spend my weekends...",frame:["习惯：I usually...","频率：Most weekends...","例子：For example...","感受：It helps me..."],sample:"I usually spend my weekends catching up on rest and doing something outdoors. Most Saturdays, I go for a long walk or meet a friend for coffee. On Sunday, I prepare for the coming week. That balance helps me feel refreshed rather than rushed."},
+ {type:"IELTS Part 2 · 人物",question:"Describe a person who gave you useful advice. You should say who the person was, what the advice was, and why it helped you.",starter:"I'd like to talk about...",frame:["人物：I'd like to talk about...","背景：At the time...","建议：They suggested that...","影响：What made it useful was..."],sample:"I'd like to talk about a former colleague who advised me to focus on consistency rather than perfection. At the time, I was nervous about speaking English and avoided conversations unless I could prepare every sentence. She suggested that I speak for a few minutes every day, even if I made mistakes. What made the advice useful was that it changed my goal from sounding perfect to communicating clearly."},
+ {type:"IELTS Part 2 · 地点",question:"Describe a place where you go to relax. You should say where it is, what it looks like, and why you enjoy it.",starter:"One place I find especially relaxing is...",frame:["地点：One place...","外观：It is surrounded by...","活动：When I'm there...","意义：What I value most is..."],sample:"One place I find especially relaxing is a riverside park near my home. It is surrounded by tall trees and has a quiet path overlooking the water. When I'm there, I usually walk slowly or sit on a bench with a coffee. What I value most is the sense of space, which helps me clear my mind."},
+ {type:"IELTS Part 2 · 挑战",question:"Describe a difficult skill you learned. You should say what it was, how you learned it, and how you felt.",starter:"A skill that was difficult for me to learn was...",frame:["技能：A skill...","难点：The hardest part was...","过程：To improve, I...","结果：Eventually..."],sample:"A skill that was difficult for me to learn was speaking English spontaneously. The hardest part was organizing my thoughts quickly without translating every word. To improve, I practised reusable sentence patterns and recorded short answers. Eventually, I became less afraid of pauses and more confident about expressing my ideas."},
+ {type:"IELTS Part 3 · 教育",question:"Should schools spend more time teaching practical life skills?",starter:"I believe schools should...",frame:["观点：I believe...","理由：One major reason is...","例子：For instance...","平衡：That said..."],sample:"I believe schools should devote more time to practical life skills. One major reason is that many young people leave school with academic knowledge but little experience managing money or communicating at work. For instance, basic lessons on budgeting and problem-solving could make the transition to adulthood smoother. That said, these subjects should complement rather than replace core academic learning."},
+ {type:"IELTS Part 3 · 科技",question:"How has technology changed the way people communicate?",starter:"Technology has changed communication by...",frame:["变化：Technology has...","好处：On the positive side...","问题：However...","判断：Overall..."],sample:"Technology has changed communication by making it almost instant and independent of distance. On the positive side, families and colleagues can stay connected through video calls and group chats. However, quick digital exchanges sometimes replace deeper face-to-face conversations. Overall, technology has expanded access to communication, but people still need to use it thoughtfully."},
+ {type:"IELTS Part 3 · 社会",question:"Why do some people find it difficult to ask others for help?",starter:"There are several reasons why...",frame:["总答：There are several reasons...","原因一：Some people worry that...","原因二：Another factor is...","总结：As a result..."],sample:"There are several reasons why people may find it difficult to ask for help. Some worry that others will see them as weak or incapable, especially in competitive workplaces. Another factor is that they may have been taught to solve problems independently. As a result, they often wait until a situation becomes much harder than it needed to be."},
+];
+const ieltsSample5=[
+ "At the moment, I work in online retail. I manage products and help solve customer problems. I like it because every day is different, and I can learn practical skills.",
+ "What I like most about my hometown is its convenience. There are many restaurants, parks, and buses. I enjoy walking by the river because it is quiet and relaxing.",
+ "I usually rest and go outside on weekends. I often meet a friend for coffee or take a long walk. On Sunday, I prepare for the next week, which helps me feel ready.",
+ "I'd like to talk about a former coworker. She told me to practise English every day instead of trying to be perfect. This advice helped me speak more often and worry less about mistakes.",
+ "One relaxing place is a park near my home. It has many trees and a path beside the river. I walk there or sit on a bench. I like it because it is peaceful.",
+ "A difficult skill I learned was speaking English without preparing. I practised short answers and useful sentence patterns. It was hard at first, but I slowly became more confident.",
+ "I think schools should teach more practical skills. Students need to learn how to manage money and solve daily problems. These skills can help them when they become adults.",
+ "Technology makes communication faster and easier. People can use video calls and messages to stay connected. However, they may spend less time talking face to face.",
+ "Some people are afraid to ask for help because they do not want to look weak. Others think they should solve every problem alone. This can make their situation more difficult."
+];
+type Band=5|5.5|6|6.5|7;
+const phraseBank=(type:string,score:Band)=>{
+ const advice=type.includes("建议"),opinion=type.includes("观点")||type.includes("说服"),problem=type.includes("困难");
+ if(score<=6){
+  if(advice)return [["If I were you, I'd...","I think you should..."],["This is because...","The reason is..."],["For example, you could...","You can start by..."],["I hope this helps.","It will get easier."]];
+  if(problem)return [["I'm calling about...","There's a problem with..."],["I ordered..., but...","The problem is that..."],["Could you please...?","I'd like you to..."],["How long will it take?","Please let me know..."]];
+  if(opinion)return [["I think...","In my opinion..."],["First,...","The main reason is..."],["For example,...","Also,..."],["Overall,...","That's why I think..."]];
+  return [["I'd like to talk about...","This happened when..."],["At first,...","The problem was..."],["Then...","So I decided to..."],["In the end...","I felt..."]];
+ }
+ if(advice)return [["If I were in your position, I'd...","The first thing I'd suggest is..."],["The main reason is that...","This would allow you to..."],["A practical way to start would be...","For instance, you could..."],["It may feel challenging initially, but...","I'm confident this would help you..."]];
+ if(problem)return [["I'm calling regarding an issue with...","I'd like to bring a problem to your attention."],["Although I ordered..., I received...","Unfortunately, what arrived was..."],["Would it be possible to...?","I'd appreciate it if you could..."],["Could you confirm when...?","I'd also like to know whether..."]];
+ if(opinion)return [["From my perspective,...","I strongly believe that..."],["The most compelling reason is that...","First and foremost,..."],["A good example would be...","On top of that,..."],["Although some may argue..., I still believe...","Taking everything into account,..."]];
+ return [["One experience that stands out is...","The scene appears to show..."],["What made the situation difficult was...","One detail worth mentioning is..."],["As a result, I decided to...","This suggests that..."],["Looking back,...","Ultimately,..."]];
+};
+const sentences=(text:string)=>text.match(/[^.!?]+[.!?]+/g)?.map(x=>x.trim())||[text];
+const scoredSample=(kind:"celpip"|"ielts",low:string,high:string,score:Band)=>{
+ const l=sentences(low),h=sentences(high);
+ if(kind==="celpip"){if(score===5)return low;if(score===6)return [h[0],...l.slice(1,3),h[h.length-1]].filter(Boolean).join(" ");return high;}
+ if(score===5)return low;
+ if(score===5.5)return [...l.slice(0,Math.min(3,l.length)),h[h.length-1]].join(" ");
+ if(score===6)return [h[0],...(l.slice(1,3)),h[h.length-1]].filter(Boolean).join(" ");
+ if(score===6.5)return h.slice(0,Math.max(3,h.length-1)).join(" ");
+ return high;
+};
+const sentenceBank=(kind:"celpip"|"ielts",type:string,score:Band)=>{
+ const advanced=score>=6.5;
+ if(kind==="celpip"){
+  if(type.includes("建议"))return advanced?[["If I were in your position, I'd start by...","The first thing I'd recommend is...","One practical step you could take is..."],["The main reason I suggest this is that...","This would make it easier for you to...","What makes this useful is that..."],["For instance, you could...","A simple way to put this into practice is to...","You might want to begin with..."],["It may take a little time, but...","I'm confident this would help you...","Once you get started, you'll probably find that..."]]:[["If I were you, I'd...","I think you should...","My advice is to..."],["This is because...","The reason is...","This can help you..."],["For example, you can...","You could start by...","Another thing you can do is..."],["I hope this helps.","It will get easier.","I think this is a good start."]];
+  if(type.includes("困难")||type.includes("异常"))return advanced?[["I'm calling regarding an issue with...","I'd like to bring a problem to your attention.","I'm hoping you can help me resolve..."],["Unfortunately, what happened was...","The main issue is that...","Although I expected..., I received..."],["I'd appreciate it if you could...","Would it be possible to...?","The best solution would be to..."],["Could you confirm how this will be handled?","Please let me know when I can expect an update.","I'd also like to know whether..."]]:[["I'm calling about...","There is a problem with...","I need help with..."],["The problem is that...","I expected..., but...","What happened was..."],["Could you please...?","Can you help me...?","I'd like you to..."],["How long will it take?","Please let me know.","Can you check this for me?"]];
+  return advanced?[["I'd like to describe...","One experience that stands out is...","From my perspective,..."],["The key point is that...","What made this significant was...","One detail worth mentioning is..."],["For instance,...","To give you a clearer picture,...","As a result,..."],["Taking everything into account,...","Looking back, I realize that...","Ultimately, I believe..."]]:[["I'd like to talk about...","I think...","This happened when..."],["First,...","The main point is...","The problem was..."],["For example,...","Then...","So I decided to..."],["In the end,...","Overall,...","That is why..."]];
+ }
+ if(type.includes("Part 1"))return advanced?[["What I enjoy most about it is...","I'd say the main reason is...","For the most part, I..."],["One thing that stands out is...","What makes it particularly enjoyable is...","I tend to... whenever..."],["For instance, just recently...","A good example would be...","This is especially true when..."],["So overall, it's something I genuinely value.","That's probably why it has become part of my routine.","It gives me a good balance in my daily life."]]:[["At the moment, I...","Usually, I...","What I like most is..."],["The main reason is...","I like it because...","One good thing is..."],["For example,...","Sometimes, I...","On weekends, I often..."],["It makes me feel...","So, I really enjoy it.","That's why it is important to me."]];
+ if(type.includes("Part 2"))return advanced?[["I'd like to talk about an experience that has stayed with me.","One person who had a lasting influence on me was...","A place I find particularly memorable is..."],["To give you some background,...","What made the situation challenging was...","I first came across it when..."],["What happened next was that...","The turning point came when...","As I became more familiar with it,..."],["Looking back, what I value most is...","The experience changed the way I think about...","Even now, I still remember it because..."]]:[["I'd like to talk about...","The person/place I chose is...","This happened when..."],["At that time,...","It is located...","The difficult part was..."],["Then I...","To improve, I...","We usually..."],["In the end,...","I felt...","I remember it because..."]];
+ return advanced?[["From a broader perspective,...","There are several factors to consider.","I would argue that..."],["One major reason is that...","The most significant factor is...","This largely stems from..."],["A good example of this would be...","This can be seen in...","To illustrate,..."],["That said, it is also important to recognize...","Taking everything into account,...","While there are exceptions, I still believe..."]]:[["I think...","In my opinion,...","There are a few reasons for this."],["The main reason is...","First,...","One reason is..."],["For example,...","This means that...","Another point is..."],["However,...","Overall,...","So I believe..."]];
 };
 
-const cards: Card[] = [
-  { scene: "咖啡店", icon: "☕", context: "你在点单，店员问你要喝什么。", prompt: "我想要一杯中杯拿铁，少糖，带走。", answer: "Could I get a medium latte, less sweet, to go?", chunks: [{text:"Could I get…",meaning:"我可以要……吗"},{text:"less sweet",meaning:"少甜 / 少糖"},{text:"to go",meaning:"带走"}], hint: "Could I get… / less… / to go", followUp: "如果店员问：Anything else? 你想说“不用了，就这些，谢谢”。" },
-  { scene: "咖啡店", icon: "☕", context: "饮料做好了，但你不确定是不是你的。", prompt: "不好意思，这是我的拿铁吗？", answer: "Excuse me, is this my latte?", chunks: [{text:"Excuse me",meaning:"礼貌引起注意"},{text:"Is this my…?",meaning:"这是我的……吗"}], hint: "Excuse me / Is this my…?", followUp: "对方说名字不对，你想说“没关系，我再等一下”。" },
-  { scene: "餐厅", icon: "🍜", context: "服务员来点餐，你还没决定好。", prompt: "我们还需要一点时间，可以等会儿再来吗？", answer: "We need a little more time. Could you come back in a few minutes?", chunks: [{text:"need a little more time",meaning:"还需要一点时间"},{text:"come back in…",meaning:"过……再来"}], hint: "need…time / come back / a few minutes", followUp: "你决定好了，想叫服务员回来点餐。" },
-  { scene: "餐厅", icon: "🍜", context: "结账时你和朋友想各付各的。", prompt: "我们可以分开结账吗？", answer: "Could we split the bill, please?", chunks: [{text:"Could we…?",meaning:"我们可以……吗"},{text:"split the bill",meaning:"分开结账"}], hint: "Could we / split / the bill", followUp: "改成：今天我请客，我来付。" },
-  { scene: "购物", icon: "🛍️", context: "你喜欢一件衣服，但想试穿。", prompt: "这件有大一码的吗？我可以试穿吗？", answer: "Do you have this in a larger size? Could I try it on?", chunks: [{text:"Do you have this in…?",meaning:"这件有……的吗"},{text:"a larger size",meaning:"大一码"},{text:"try it on",meaning:"试穿"}], hint: "have this / larger size / try it on", followUp: "试完觉得不合适，你想说“我再考虑一下”。" },
-  { scene: "出行", icon: "🚇", context: "你在地铁站，不知道该在哪一站换乘。", prompt: "请问，去市中心我应该在哪里换乘？", answer: "Excuse me, where should I transfer to get downtown?", chunks: [{text:"Where should I…?",meaning:"我应该在哪里……"},{text:"transfer",meaning:"换乘"},{text:"get downtown",meaning:"到市中心"}], hint: "Excuse me / where should I / transfer", followUp: "对方说得太快，请他再说一遍。" },
-  { scene: "出行", icon: "🚕", context: "你上了出租车，想告诉司机目的地。", prompt: "麻烦送我到这个地址，我赶时间。", answer: "Could you take me to this address? I’m in a bit of a hurry.", chunks: [{text:"take me to…",meaning:"送我去……"},{text:"in a bit of a hurry",meaning:"有点赶时间"}], hint: "take me to / this address / in a hurry", followUp: "你不赶时间，想请司机开慢一点。" },
-  { scene: "工作", icon: "💻", context: "会议中你没听懂同事的意思。", prompt: "抱歉，我不太明白。你能举个例子吗？", answer: "Sorry, I’m not quite following. Could you give me an example?", chunks: [{text:"I’m not quite following",meaning:"我不太明白你的意思"},{text:"give me an example",meaning:"给我举个例子"}], hint: "not quite following / give me / example", followUp: "你听懂了，想确认：“所以你的意思是我们要推迟，对吗？”" },
-  { scene: "社交", icon: "👋", context: "朋友邀请你周五吃饭，但你那天有安排。", prompt: "谢谢你邀请我，但周五我可能不行。周六怎么样？", answer: "Thanks for inviting me, but Friday might not work for me. How about Saturday?", chunks: [{text:"Thanks for inviting me",meaning:"谢谢你邀请我"},{text:"might not work for me",meaning:"对我来说可能不行"},{text:"How about…?",meaning:"……怎么样"}], hint: "Thanks for / might not work / How about", followUp: "对方周六也没空，你想说“那我们改天再约”。" },
-  { scene: "邻里", icon: "🏠", context: "邻居家的音乐有点大，你准备礼貌沟通。", prompt: "不好意思，能把音乐调小一点吗？我明早要早起。", answer: "Sorry to bother you, but could you turn the music down a little? I have to get up early tomorrow.", chunks: [{text:"Sorry to bother you",meaning:"抱歉打扰你"},{text:"turn … down",meaning:"把……调小"},{text:"get up early",meaning:"早起"}], hint: "Sorry to bother / turn down / get up early", followUp: "邻居道歉后，你想说“没关系，谢谢你理解”。" },
-  { scene: "电话", icon: "📞", context: "电话信号不好，你听不清对方。", prompt: "这里信号不太好。你能再说一遍吗？", answer: "The signal isn’t very good here. Could you say that again?", chunks: [{text:"The signal isn’t very good",meaning:"信号不太好"},{text:"say that again",meaning:"再说一遍"}], hint: "signal / not very good / say that again", followUp: "还是听不清，你想说“我晚点给你回电话”。" },
-  { scene: "求助", icon: "🧭", context: "你迷路了，想问路人去车站怎么走。", prompt: "不好意思，你知道去火车站怎么走吗？", answer: "Excuse me, do you know how to get to the train station?", chunks: [{text:"Do you know how to get to…?",meaning:"你知道怎么去……吗"},{text:"train station",meaning:"火车站"}], hint: "Excuse me / know how to get to / station", followUp: "对方指路后，你想确认“走路大概要多久？”" },
+function ChoiceRow({choices,index,speak}:{choices:string[];index:number;speak:(t:string,r?:number)=>void}){
+ return <div className="choiceRow"><span>{index+1}</span><p>{choices.map(x=><button key={x} onClick={()=>speak(x)}>▶ {x}</button>)}</p></div>;
+}
+
+const preferredVoice=()=>{
+ const voices=speechSynthesis.getVoices().filter(v=>v.lang.toLowerCase().startsWith("en")),saved=localStorage.getItem("chunk-voice");
+ if(saved){const hit=voices.find(v=>v.name===saved);if(hit)return hit;}
+ const preferred=["Microsoft Aria Online","Microsoft Jenny Online","Microsoft Guy Online","Google US English","Samantha","Daniel","Karen"];
+ return preferred.map(n=>voices.find(v=>v.name.includes(n))).find(Boolean)||voices.find(v=>v.lang==="en-US")||voices[0];
+};
+const setUtteranceVoice=(u:SpeechSynthesisUtterance)=>{const voice=preferredVoice();if(voice){u.voice=voice;u.lang=voice.lang}else u.lang="en-US"};
+
+function VoicePicker(){
+ const[voices,setVoices]=useState<SpeechSynthesisVoice[]>([]),[selected,setSelected]=useState("");
+ useEffect(()=>{const load=()=>{const list=speechSynthesis.getVoices().filter(v=>v.lang.toLowerCase().startsWith("en"));setVoices(list);setSelected(localStorage.getItem("chunk-voice")||preferredVoice()?.name||"")};load();speechSynthesis.addEventListener("voiceschanged",load);return()=>speechSynthesis.removeEventListener("voiceschanged",load)},[]);
+ const change=(name:string)=>{setSelected(name);localStorage.setItem("chunk-voice",name);const u=new SpeechSynthesisUtterance("This is the voice you'll hear during practice.");setUtteranceVoice(u);u.rate=.9;speechSynthesis.cancel();speechSynthesis.speak(u)};
+ return <select aria-label="英语音色" value={selected} onChange={e=>change(e.target.value)}>{voices.map(v=><option value={v.name} key={v.name}>{v.name.replace("Microsoft ","").replace(" Online (Natural) - English (United States)"," · Natural")}</option>)}</select>;
+}
+
+type BuildTask={cn:string;intent:string;order:string[];frame:string;chunks:string[];answer:string};
+const buildTasks:BuildTask[]=[
+ {cn:"我今天可以早点走吗？我有个医生预约。",intent:"礼貌请求许可",order:["先问是否可以","说我要做的动作","最后补充原因"],frame:"Would it be okay if + 主语 + 动作？原因。",chunks:["Would it be okay","if I left early today?","I have","a doctor's appointment."],answer:"Would it be okay if I left early today? I have a doctor's appointment."},
+ {cn:"你有空的时候能帮我看一下这个吗？",intent:"礼貌请求帮助",order:["先提出动作","再给对方宽松的时间"],frame:"Could you + 动作 + when + 时间条件？",chunks:["Could you take a look at this","when you have a moment?"],answer:"Could you take a look at this when you have a moment?"},
+ {cn:"我还在处理，今天下班前会发给你。",intent:"汇报进度并承诺",order:["先说当前状态","再给明确完成时间"],frame:"I'm still + 动作。I'll + 结果 + by + 时间。",chunks:["I'm still working on it.","I'll send it to you","by the end of the day."],answer:"I'm still working on it. I'll send it to you by the end of the day."},
+ {cn:"我今天身体不舒服，想请一天病假。",intent:"说明情况并提出请假",order:["先说身体状况","用 so 连接结果","提出请假"],frame:"I'm not...，so I'd like to...",chunks:["I'm not feeling well today,","so I'd like to take","a sick day."],answer:"I'm not feeling well today, so I'd like to take a sick day."},
+ {cn:"不好意思，我点的不是这个。",intent:"礼貌指出问题",order:["先缓和语气","指出眼前的东西","说明与订单不符"],frame:"Sorry, this isn't + 从句。",chunks:["Sorry,","this isn't","what I ordered."],answer:"Sorry, this isn't what I ordered."},
+ {cn:"我们还需要一点时间，可以过几分钟再来吗？",intent:"说明需要并提出请求",order:["先说需要什么","再问对方能否配合"],frame:"We need... Could you...?",chunks:["We need a little more time.","Could you come back","in a few minutes?"],answer:"We need a little more time. Could you come back in a few minutes?"},
+ {cn:"我的包裹本来应该昨天到，但现在还没收到。",intent:"描述未达到预期",order:["先说原本预期","用 but 转折","说当前结果"],frame:"...was supposed to...，but it hasn't...yet。",chunks:["My package was supposed to arrive yesterday,","but it hasn't arrived yet."],answer:"My package was supposed to arrive yesterday, but it hasn't arrived yet."},
+ {cn:"如果我是你，我会先和经理谈谈。",intent:"给建议",order:["先建立假设","给出建议动作","用 first 表示优先级"],frame:"If I were you, I'd + 动作。",chunks:["If I were you,","I'd talk to your manager first."],answer:"If I were you, I'd talk to your manager first."},
+ {cn:"我认为学校应该教更多实用生活技能。",intent:"表达观点",order:["先明确立场","再说谁应该做什么"],frame:"I think + 主语 + should + 动作。",chunks:["I think","schools should teach","more practical life skills."],answer:"I think schools should teach more practical life skills."},
+ {cn:"我最喜欢家乡的一点是生活很方便。",intent:"直接回答并聚焦重点",order:["先用固定骨架点题","再填入具体特点"],frame:"What I like most about...is...",chunks:["What I like most about my hometown","is how convenient it is."],answer:"What I like most about my hometown is how convenient it is."},
+ {cn:"这里信号不太好，你能再说一遍吗？",intent:"解释问题并请求重复",order:["先交代沟通问题","再提出解决请求"],frame:"The...isn't... Could you...?",chunks:["The signal isn't very good here.","Could you say that again?"],answer:"The signal isn't very good here. Could you say that again?"},
+ {cn:"虽然团队合作有时需要见面，但灵活安排更平衡。",intent:"让步后表达观点",order:["先承认另一面","再用主句表达判断"],frame:"Although + 让步，主句。",chunks:["Although teamwork sometimes requires meeting in person,","a flexible schedule offers","a better balance."],answer:"Although teamwork sometimes requires meeting in person, a flexible schedule offers a better balance."},
 ];
 
-const scenes = ["全部", ...Array.from(new Set(cards.map(c => c.scene)))];
+function SentenceBuilder({speak}:{speak:(t:string,r?:number)=>void}){
+ const[index,setIndex]=useState(0),[picked,setPicked]=useState<number[]>([]),[checked,setChecked]=useState(false);const task=buildTasks[index%buildTasks.length];
+ const tiles=task.chunks.map((text,i)=>({text,i})).filter(x=>!picked.includes(x.i)).sort((a,b)=>a.text.localeCompare(b.text));const correct=picked.length===task.chunks.length&&picked.every((x,i)=>x===i);
+ const next=()=>{setIndex(i=>(i+1)%buildTasks.length);setPicked([]);setChecked(false)};
+ return <section className="builder"><aside className="thinking"><span>ENGLISH THINKING</span><h2>先想意图，<br/>不要逐字翻译</h2><div className="intent"><small>这句话要完成什么？</small><b>{task.intent}</b></div><ol>{task.order.map(x=><li key={x}>{x}</li>)}</ol><div className="frameBox"><small>英语骨架</small><b>{task.frame}</b></div></aside><article className="buildCard"><div className="cardTop"><span>组句训练 · {index+1}/{buildTasks.length}</span><button onClick={next}>↝ 换一题</button></div><label>你想表达</label><h3>{task.cn}</h3><div className="buildFlow"><small>按英语思维顺序放入语块</small><div className="sentenceLine">{picked.length?picked.map((id,i)=><button key={i} onClick={()=>{setPicked(p=>p.slice(0,i));setChecked(false)}}>{task.chunks[id]}</button>):<span>从下面选择第一个语块…</span>}</div><div className="tileBank">{tiles.map(x=><button key={x.i} onClick={()=>{setPicked(p=>[...p,x.i]);setChecked(false)}}>{x.text}</button>)}</div></div>{checked&&<div className={correct?"buildResult correct":"buildResult wrong"}>{correct?<><b>✓ 英语顺序正确</b><p>{task.answer}</p><button onClick={()=>speak(task.answer)}>▶ 听完整句</button></>:<><b>还差一点</b><p>回到“沟通意图 → 骨架 → 动作 → 细节”的顺序再试。点击已选语块可以退回。</p><button onClick={()=>{setPicked([]);setChecked(false)}}>重新组句</button></>}</div>}<div className="buildActions"><button className="secondary" onClick={()=>{setPicked(task.chunks.map((_,i)=>i));setChecked(true)}}>看英语顺序</button><button className="primary" onClick={()=>setChecked(true)} disabled={!picked.length}>检查组句</button>{correct&&<button className="primary" onClick={next}>下一题 →</button>}</div></article></section>;
+}
 
-export default function Home() {
-  const [scene, setScene] = useState("全部");
-  const [index, setIndex] = useState(0);
-  const [step, setStep] = useState<"prompt"|"hint"|"answer"|"transfer">("prompt");
-  const [done, setDone] = useState<number[]>([]);
-  const [streak, setStreak] = useState(0);
-  const filtered = useMemo(() => cards.map((c, i) => ({...c, originalIndex:i})).filter(c => scene === "全部" || c.scene === scene), [scene]);
-  const card = filtered[index % filtered.length];
+function BandSelector({kind,score,setScore}:{kind:"celpip"|"ielts";score:Band;setScore:React.Dispatch<React.SetStateAction<Band>>}){
+ const bands:Band[]=kind==="ielts"?[5,5.5,6,6.5,7]:[5,6,7];
+ const ieltsNotes:Record<Band,string>={5:"直接回答，用基础句说明个人情况",5.5:"补充简单原因或具体例子",6:"持续展开，信息相关且基本连贯",6.5:"灵活改述，使用自然衔接和更具体细节",7:"观点充分，句式多样，措辞自然准确"};
+ const celpipNotes:Record<Band,string>={5:"先完成沟通任务：说清问题、理由和诉求",5.5:"完成任务并补充一个具体细节",6:"信息完整，表达基本连贯",6.5:"语气得体，能解释并回应可能的顾虑",7:"高效完成任务，细节充分且表达自然有说服力"};
+ const note=(kind==="ielts"?ieltsNotes:celpipNotes)[score];
+ return <><div className="scoreSwitch bandSwitch">{bands.map(b=><button key={b} className={score===b?"active":""} onClick={()=>setScore(b)}>{b} 分</button>)}</div><small className="bandNote">{kind==="ielts"?"IELTS 回答重点":"CELPIP 任务重点"}：{note}（训练参考）</small></>;
+}
 
-  useEffect(() => { const raw = localStorage.getItem("chunk-progress"); if (raw) setDone(JSON.parse(raw)); }, []);
-  const speak = (text: string, rate=.88) => { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang="en-US"; u.rate=rate; speechSynthesis.speak(u); };
-  const chooseScene = (s:string) => { setScene(s); setIndex(0); setStep("prompt"); };
-  const next = (remembered:boolean) => {
-    if (remembered && !done.includes(card.originalIndex)) { const n=[...done,card.originalIndex]; setDone(n); localStorage.setItem("chunk-progress",JSON.stringify(n)); }
-    setStreak(remembered ? streak+1 : 0); setIndex((index+1)%filtered.length); setStep("prompt");
-  };
+function SpeakingLab({sample,speak}:{sample:string;speak:(t:string,r?:number)=>void}){
+ const[recording,setRecording]=useState(false),[recorder,setRecorder]=useState<MediaRecorder|null>(null),[audioUrl,setAudioUrl]=useState(""),[speed,setSpeed]=useState(.82),[pause,setPause]=useState(1800),[shadowing,setShadowing]=useState(false),[active,setActive]=useState(-1);
+ const run=useRef(0);
+ const chunks=sample.match(/[^.!?]+[.!?]+/g)||[sample];
+ const startRecord=async()=>{try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const rec=new MediaRecorder(stream),data:Blob[]=[];rec.ondataavailable=e=>data.push(e.data);rec.onstop=()=>{setAudioUrl(URL.createObjectURL(new Blob(data,{type:rec.mimeType})));stream.getTracks().forEach(t=>t.stop())};rec.start();setRecorder(rec);setRecording(true)}catch{alert("无法使用麦克风，请在浏览器地址栏允许麦克风权限。")}};
+ const stopRecord=()=>{recorder?.stop();setRecording(false)};
+ const shadow=async()=>{const id=++run.current;setShadowing(true);speechSynthesis.cancel();for(let i=0;i<chunks.length;i++){if(id!==run.current)break;setActive(i);await new Promise<void>(resolve=>{const u=new SpeechSynthesisUtterance(chunks[i].trim());setUtteranceVoice(u);u.rate=speed;u.pitch=1;u.onend=()=>resolve();u.onerror=()=>resolve();speechSynthesis.speak(u)});if(id!==run.current)break;await new Promise(r=>setTimeout(r,pause))}if(id===run.current){setShadowing(false);setActive(-1)}};
+ const stopShadow=()=>{run.current++;speechSynthesis.cancel();setShadowing(false);setActive(-1)};
+ return <div className="speakingLab"><div className="labHead"><div><b>🎧 影子跟读</b><span>{shadowing?`第 ${active+1}/${chunks.length} 句：听完后立即模仿`:`分意群听一句、模仿一句，再继续`}</span></div><div className="shadowSettings"><VoicePicker/><select aria-label="跟读速度" value={speed} onChange={e=>setSpeed(Number(e.target.value))}><option value="0.68">慢速 0.68×</option><option value="0.82">练习 0.82×</option><option value="1">正常 1.0×</option></select><select aria-label="模仿停顿" value={pause} onChange={e=>setPause(Number(e.target.value))}><option value="1200">停顿 1.2 秒</option><option value="1800">停顿 1.8 秒</option><option value="2600">停顿 2.6 秒</option></select></div></div><div className="shadowChunks">{chunks.map((x,i)=><button className={active===i?"active":""} key={i} onClick={()=>{stopShadow();setActive(i);speak(x.trim(),speed)}}><i>{active===i?"▶":i+1}</i>{x.trim()}<small>点击重听</small></button>)}</div><div className="labActions"><button className={shadowing?"stopShadow":"secondary"} onClick={shadowing?stopShadow:shadow}>{shadowing?"■ 停止跟读":"▶ 开始连续跟读"}</button><button className={recording?"recording":""} onClick={recording?stopRecord:startRecord}>{recording?"■ 停止录音":"● 录下我的复述"}</button></div>{audioUrl&&<audio className="playback" controls src={audioUrl}/>}</div>;
+}
 
-  return <main>
-    <header>
-      <div className="brand"><span className="logo">C</span><div><strong>Chunk Talk</strong><small>把想说的话，练成脱口而出的语块</small></div></div>
-      <div className="progress"><span>今日连胜 <b>{streak}</b></span><span className="bar"><i style={{width:`${Math.round(done.length/cards.length*100)}%`}} /></span><span>{done.length}/{cards.length}</span></div>
-    </header>
+function ExamView({kind,index,step,score,setIndex,setStep,setScore,speak}:{kind:"celpip"|"ielts";index:number;step:"prompt"|"hint"|"answer"|"transfer";score:Band;setIndex:React.Dispatch<React.SetStateAction<number>>;setStep:React.Dispatch<React.SetStateAction<"prompt"|"hint"|"answer"|"transfer">>;setScore:React.Dispatch<React.SetStateAction<Band>>;speak:(t:string,r?:number)=>void}){
+ const tasks=kind==="celpip"?examTasks:ieltsTasks,fiveSamples=kind==="celpip"?sample5s:ieltsSample5;
+ const task=tasks[index%tasks.length],low=fiveSamples[index%tasks.length],high=task.sample,sample=scoredSample(kind,low,high,score);
+ return <section className="exam"><div className="examIntro"><span>SPEAKING · ANTI-BLANK</span><h2>{kind==="celpip"?"CELPIP 全任务训练":"IELTS Part 1–3 训练"}</h2><p>不要追求完美。先用启动句抢回节奏，再沿四步骨架说满内容。</p><BandSelector kind={kind} score={score} setScore={setScore}/></div><article className="examCard"><div className="cardTop"><span>{task.type} · {index%tasks.length+1}/{tasks.length}</span><button onClick={()=>{setIndex(i=>(i+1)%tasks.length);setStep("prompt")}}>↝ 换一题</button></div><label>考试题目</label><h3>{task.question}</h3><div className="starter"><small>大脑空白时，只说这一句也算启动成功</small><b>{task.starter}</b><button className="sound" onClick={()=>speak(task.starter)}>▶ 听启动句</button></div>{step==="prompt"?<div className="actionArea"><p>先立即说启动句，然后尝试自己补充 3 个要点。</p><div><button className="secondary" onClick={()=>setStep("hint")}>我卡住了 · 看表达库</button><button className="primary" onClick={()=>setStep("answer")}>我说完了 · 看示范</button></div></div>:step==="hint"?<div className="examFrame"><div className="levelNote"><b>{kind==="celpip"?`CELPIP ${score} 分任务句库`:`IELTS Band ${score} 回答句库`}</b><span>{score<=6?"优先把答案说清楚，并补充原因与例子":"增加句式变化、自然衔接和观点展开"}</span></div>{sentenceBank(kind,task.type,score).map((choices,i)=><ChoiceRow key={i} choices={choices} index={i} speak={speak}/>)}<button className="primary" onClick={()=>setStep("answer")}>任选表达说完 · 看示范</button></div>:<div className="answer"><label>{score} 分自然示范 <button className="sound" onClick={()=>speak(sample,.82)}>▶ 听完整回答</button></label><h4>{sample}</h4><SpeakingLab sample={sample} speak={speak}/><div className="repeat"><button className="secondary danger" onClick={()=>setStep("hint")}>还是会空白</button><button className="primary" onClick={()=>{setIndex(i=>(i+1)%tasks.length);setStep("prompt")}}>能沿骨架说出 ✓</button></div></div>}</article></section>;
+}
 
-    <section className="hero">
-      <div><span className="eyebrow">DAILY SPEAKING LAB</span><h1>别再背孤零零的单词。<br/><em>练你今天真的会说的话。</em></h1><p>先凭记忆开口，再看提示，最后用自然语块重说一遍。每天 10 分钟，让英语从“认识”变成“说得出”。</p></div>
-      <div className="today"><b>{done.length ? "继续保持" : "今天，从一句开始"}</b><span>{done.length ? `你已经掌握 ${done.length} 个生活表达` : "不求完美，先把意思说出来"}</span></div>
-    </section>
-
-    <nav aria-label="选择生活场景">
-      {scenes.map(s => <button key={s} className={scene===s?"active":""} onClick={()=>chooseScene(s)}>{s}</button>)}
-    </nav>
-
-    <section className="practice">
-      <aside>
-        <span className="sceneIcon">{card.icon}</span><span className="sceneName">{card.scene}</span>
-        <h2>{card.context}</h2>
-        <div className="instruction"><span>1</span><p><b>先别看答案</b><br/>用你现有的英语说出来。卡住也没关系。</p></div>
-        <div className="instruction"><span>2</span><p><b>说完再揭晓</b><br/>注意整块表达，不要逐词翻译。</p></div>
-      </aside>
-
-      <article className="card">
-        <div className="cardTop"><span>第 {index+1} / {filtered.length} 题</span><button onClick={()=>setIndex(Math.floor(Math.random()*filtered.length))}>↝ 换一道</button></div>
-        <label>你想表达</label><h3>{card.prompt}</h3>
-
-        {step === "prompt" && <div className="actionArea"><p>现在，大声说出来。</p><div><button className="secondary" onClick={()=>setStep("hint")}>给我一点提示</button><button className="primary" onClick={()=>setStep("answer")}>我说完了 · 看答案</button></div></div>}
-        {step === "hint" && <div className="hint"><label>只看关键词，再试一次</label><p>{card.hint}</p><button className="primary" onClick={()=>setStep("answer")}>看自然表达</button></div>}
-        {(step === "answer" || step === "transfer") && <div className="answer">
-          <label>自然表达 <button className="sound" onClick={()=>speak(card.answer)}>▶ 听一遍</button></label><h4>{card.answer}</h4>
-          <div className="chunks">{card.chunks.map(c=><div key={c.text}><b>{c.text}</b><span>{c.meaning}</span></div>)}</div>
-          {step === "answer" && <div className="repeat"><button onClick={()=>speak(card.answer,.68)}>🐢 慢速</button><button onClick={()=>speak(card.answer)}>▶ 正常</button><button className="primary" onClick={()=>setStep("transfer")}>我跟读了 · 换个情境</button></div>}
-        </div>}
-        {step === "transfer" && <div className="transfer"><label>迁移挑战 · 不看原句</label><p>{card.followUp}</p><div><button className="secondary" onClick={()=>next(false)}>还不熟，再遇一次</button><button className="primary" onClick={()=>next(true)}>说出来了 ✓</button></div></div>}
-      </article>
-    </section>
-
-    <footer><span>训练原则：先输出 → 再提示 → 整块记忆 → 换境复用</span><span>你的进度只保存在当前设备</span></footer>
-  </main>;
+export default function Home(){
+ const[mode,setMode]=useState<"practice"|"quiz"|"game"|"review"|"builder"|"exam"|"ielts">("practice"),[scene,setScene]=useState("全部"),[index,setIndex]=useState(0),[step,setStep]=useState<"prompt"|"hint"|"answer"|"transfer">("prompt"),[progress,setProgress]=useState<Progress>({}),[streak,setStreak]=useState(0),[lives,setLives]=useState(3),[stage,setStage]=useState(1),[score,setScore]=useState<Band>(5);
+ useEffect(()=>{try{setProgress(JSON.parse(localStorage.getItem("chunk-srs")||"{}"))}catch{}},[]);
+ const due=useMemo(()=>cards.map((_,i)=>i).filter(i=>!progress[i]||progress[i].due<=Date.now()),[progress]);
+ const pool=useMemo(()=>{let ids=cards.map((_,i)=>i).filter(i=>scene==="全部"||cards[i].scene===scene);if(mode==="review")ids=ids.filter(i=>due.includes(i));if(mode==="game")ids=ids.slice((stage-1)*10,stage*10);return ids.length?ids:[0]},[scene,mode,due,stage]);
+ const id=pool[index%pool.length],card=cards[id];
+ const speak=(t:string,r=.88)=>{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);setUtteranceVoice(u);u.rate=r;u.pitch=1;speechSynthesis.speak(u)};
+ const setModeSafe=(m:typeof mode)=>{setMode(m);setIndex(0);setStep("prompt");setLives(3)};
+ const grade=(ok:boolean)=>{const old=progress[id]||{level:0,due:0,misses:0};const level=ok?Math.min(old.level+1,5):0;const days=[0,1,3,7,14,30][level];const next={...progress,[id]:{level,due:Date.now()+days*86400000,misses:old.misses+(ok?0:1)}};setProgress(next);localStorage.setItem("chunk-srs",JSON.stringify(next));setStreak(ok?streak+1:0);if(mode==="game"&&!ok)setLives(l=>l-1);if(mode==="game"&&ok&&(index+1)%10===0)setStage(s=>Math.min(s+1,Math.ceil(cards.length/10)));setIndex(i=>(i+1)%pool.length);setStep("prompt")};
+ const mastered=Object.values(progress).filter(x=>x.level>=3).length;
+ return <main><header><div className="brand"><span className="logo">C</span><div><strong>Chunk Talk</strong><small>地道生活英语 · 间隔复习</small></div></div><div className="progress"><span>连胜 <b>{streak}</b></span><span>待复习 <b>{due.length}</b></span><span>已掌握 <b>{mastered}</b>/{cards.length}</span></div></header>
+ <section className="hero compact"><div><span className="eyebrow">DAILY SPEAKING LAB</span><h1>把生活里要说的话，<em>练到脱口而出。</em></h1><p>共 {cards.length} 道地道表达，覆盖 {scenes.length-1} 类生活场景。不会的题会自动进入复习队列。</p></div>{mode==="game"?<div className="gameStat"><b>第 {stage} 关</b><span>{"❤️".repeat(Math.max(lives,0))}{"🖤".repeat(Math.max(3-lives,0))}</span></div>:<div className="today"><b>{due.length} 题待复习</b><span>记忆需要反复提取，而不是反复看答案</span></div>}</section>
+ <div className="modes"><button className={mode==="practice"?"active":""} onClick={()=>setModeSafe("practice")}>🎙 自由练习</button><button className={mode==="quiz"?"active":""} onClick={()=>setModeSafe("quiz")}>✍️ 答题模式</button><button className={mode==="review"?"active":""} onClick={()=>setModeSafe("review")}>🧠 今日复习 <i>{due.length}</i></button><button className={mode==="builder"?"active":""} onClick={()=>setModeSafe("builder")}>🧩 英语思维组句</button><button className={mode==="game"?"active":""} onClick={()=>setModeSafe("game")}>🎮 闯关模式</button><button className={mode==="exam"?"active":""} onClick={()=>setModeSafe("exam")}>🎯 CELPIP 全 8 Part</button><button className={mode==="ielts"?"active":""} onClick={()=>setModeSafe("ielts")}>🌍 IELTS Part 1–3</button></div>
+ {mode!=="exam"&&mode!=="ielts"&&mode!=="builder"&&<nav>{scenes.map(s=><button key={s} className={scene===s?"active":""} onClick={()=>{setScene(s);setIndex(0);setStep("prompt")}}>{s}</button>)}</nav>}
+ {mode==="exam"?<ExamView kind="celpip" index={index} step={step} score={score} setIndex={setIndex} setStep={setStep} setScore={setScore} speak={speak}/>:mode==="ielts"?<ExamView kind="ielts" index={index} step={step} score={score} setIndex={setIndex} setStep={setStep} setScore={setScore} speak={speak}/>:mode==="builder"?<SentenceBuilder speak={speak}/>:mode==="game"&&lives<=0?<section className="gameOver"><span>💥</span><h2>本关挑战结束</h2><p>错题已经加入复习队列。复习后再来，会明显轻松。</p><button className="primary" onClick={()=>{setLives(3);setIndex(0)}}>重新挑战</button></section>:<section className="practice"><aside><span className="sceneIcon">{card.icon}</span><span className="sceneName">{card.scene}</span><h2>{card.context}</h2><div className="instruction"><span>1</span><p><b>{mode==="quiz"?"先完整作答":"先大声说"}</b><br/>不要逐词翻译，先把意思表达出来。</p></div><div className="instruction"><span>2</span><p><b>按真实熟练度评分</b><br/>“不熟”会在今天再次出现。</p></div></aside><article className="card"><div className="cardTop"><span>{mode==="game"?`第 ${stage} 关 · ${index%10+1}/10`:`第 ${index%pool.length+1}/${pool.length} 题`}</span><button onClick={()=>{setIndex(Math.floor(Math.random()*pool.length));setStep("prompt")}}>↝ 换一道</button></div><label>你想表达</label><h3>{card.prompt}</h3>
+ {step==="prompt"&&<div className="actionArea"><p>{mode==="quiz"?"请先完整说出英文，再核对答案。":"现在，大声说出来。"}</p><div><button className="secondary" onClick={()=>setStep("hint")}>给我一点提示</button><button className="primary" onClick={()=>setStep("answer")}>说完了 · 核对答案</button></div></div>}
+ {step==="hint"&&<div className="hint"><label>关键词</label><p>{card.hint}</p><button className="primary" onClick={()=>setStep("answer")}>核对答案</button></div>}
+ {(step==="answer"||step==="transfer")&&<div className="answer"><label>自然表达 <button className="sound" onClick={()=>speak(card.answer)}>▶ 听一遍</button></label><h4>{card.answer}</h4><div className="chunks"><div><b>{card.hint.split(" / ")[0]}</b><span>优先整块记忆</span></div><div><b>Level {progress[id]?.level||0}/5</b><span>当前记忆强度</span></div></div>{step==="answer"&&<div className="repeat"><button onClick={()=>speak(card.answer,.68)}>🐢 慢速</button><button onClick={()=>speak(card.answer)}>▶ 正常</button><button className="primary" onClick={()=>setStep("transfer")}>跟读完成 · 迁移</button></div>}</div>}
+ {step==="transfer"&&<div className="transfer"><label>迁移挑战 · 不看原句</label><p>{card.followUp}</p><div><button className="secondary danger" onClick={()=>grade(false)}>还不熟 · 加入复习</button><button className="primary" onClick={()=>grade(true)}>能自然说出 ✓</button></div></div>}</article></section>}
+ <footer><span>间隔：当天 → 1 天 → 3 天 → 7 天 → 14 天 → 30 天</span><span>学习进度保存在当前设备</span></footer></main>
 }
