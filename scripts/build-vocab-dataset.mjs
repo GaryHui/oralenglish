@@ -21,11 +21,12 @@ const cleaned=rows.map(row=>{
  const translation=(row[at.translation]||"").split(/\n|\\n/).map(x=>x.trim()).filter(Boolean).slice(0,2).join("；").slice(0,180);
  const bnc=Number(row[at.bnc])||999999,frq=Number(row[at.frq])||999999,rank=Math.min(bnc,frq);
  const posRaw=(row[at.pos]||"").split("/").sort((a,b)=>(Number(b.split(":")[1])||0)-(Number(a.split(":")[1])||0))[0]?.split(":")[0]||"x";
- return {word,phonetic:(row[at.phonetic]||"").trim(),translation,pos:posNames[posRaw]||"其他",rank,tags:(row[at.tag]||"").trim(),definition:(row[at.definition]||"").split(/\n|\\n/).filter(Boolean)[0]?.slice(0,160)||""};
-}).filter(x=>/^[a-z][a-z'-]*$/.test(x.word)&&x.translation&&x.rank<999999);
+ const exchange=(row[at.exchange]||"").trim(),inflected=/(?:^|\/)0:/.test(exchange);
+ return {word,phonetic:(row[at.phonetic]||"").trim(),translation,pos:posNames[posRaw]||"其他",rank,tags:(row[at.tag]||"").trim(),definition:(row[at.definition]||"").split(/\n|\\n/).filter(Boolean)[0]?.slice(0,160)||"",inflected};
+}).filter(x=>/^[a-z][a-z'-]*$/.test(x.word)&&x.translation&&x.rank<999999&&!x.inflected);
 cleaned.sort((a,b)=>a.rank-b.rank||a.word.localeCompare(b.word));
 const seen=new Set(),picked=[];
 for(const item of cleaned){if(seen.has(item.word))continue;seen.add(item.word);picked.push(item);if(picked.length===12000)break}
-const leveled=picked.map((x,i)=>({...x,level:i<1500?"A1":i<3500?"A2":i<6500?"B1":i<9500?"B2":"C1"}));
+const leveled=picked.map(({inflected,...x},i)=>({...x,band:Math.floor(i/1000)+1,level:i<1500?"A1":i<3500?"A2":i<6500?"B1":i<9500?"B2":"C1"}));
 fs.writeFileSync(output,JSON.stringify({source:"ECDICT",license:"MIT",generatedAt:new Date().toISOString(),count:leveled.length,words:leveled}));
 console.log(`Wrote ${leveled.length} words to ${output}`);
