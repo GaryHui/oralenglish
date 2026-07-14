@@ -99,7 +99,7 @@ const patterns:Pattern[]=[
  ["搬家","📦","安排搬运","我需要把{zh}搬到新家。","I need help moving {en} to my new place.","need help moving","确认报价是否包含车辆和人工。",[["一张沙发和两张床","a sofa and two beds"],["大约二十个箱子","about twenty boxes"],["一架钢琴","a piano"],["几件大型家具","several large pieces of furniture"],["办公室设备","office equipment"],["易碎的厨房用品","fragile kitchen items"],["地下室里的物品","items from the basement"],["一个小公寓的全部物品","the contents of a small apartment"]]],
  ["图书馆","📚","寻求借阅帮助","我在找关于{zh}的资料。","I'm looking for resources about {en}.","looking for resources about","询问电子书或馆际互借。",[["英语口语","spoken English"],["求职面试","job interviews"],["加拿大历史","Canadian history"],["个人理财","personal finance"],["儿童阅读","children's reading"],["编程入门","beginner programming"],["健康饮食","healthy eating"],["学术写作","academic writing"]]],
 ];
-const patternRaw:[string,string,string,string,string,string,string][]=patterns.flatMap(([scene,icon,context,prompt,answer,hint,followUp,slots])=>slots.map(([zh,en])=>[scene,icon,context,prompt.replace("{zh}",zh),answer.replace("{en}",en),hint,followUp]));
+const patternRaw:[string,string,string,string,string,string,string][]=patterns.flatMap(([scene,icon,context,prompt,answer,hint,followUp,slots])=>slots.map(([zh,en])=>[scene,icon,context,prompt.replace("{zh}",zh),answer.replace("{en}",en),hint,followUp] as [string,string,string,string,string,string,string]));
 const cards:Card[]=[...raw,...patternRaw].map(([scene,icon,context,prompt,answer,hint,followUp])=>({scene,icon,context,prompt,answer,hint,followUp}));
 type Progress=Record<number,{level:number;due:number;misses:number}>;
 const scenes=["全部",...Array.from(new Set(cards.map(c=>c.scene)))];
