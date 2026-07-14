@@ -39,6 +39,7 @@ next-env.d.ts
 /dist/
 /.wrangler/
 /outputs/
+.cache/
 /work/
 /.wrangler-local/
 /site-package.tgz
