@@ -1,6 +1,6 @@
 -- Run once in the Supabase SQL Editor for projects created before recording limits were added.
 update storage.buckets
-set file_size_limit = 2097152,
+set file_size_limit = 4194304,
     allowed_mime_types = array['audio/webm','audio/mp4','audio/ogg']
 where id = 'speaking-recordings';
 

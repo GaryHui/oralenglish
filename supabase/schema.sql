@@ -30,12 +30,12 @@ create policy "users insert own recording rows" on public.speaking_recordings fo
 create policy "users delete own recording rows" on public.speaking_recordings for delete using (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('speaking-recordings', 'speaking-recordings', false, 2097152, array['audio/webm','audio/mp4','audio/ogg'])
+values ('speaking-recordings', 'speaking-recordings', false, 4194304, array['audio/webm','audio/mp4','audio/ogg'])
 on conflict (id) do nothing;
 
--- Keep existing projects aligned with the free-plan client limit (2 MB per recording).
+-- The bucket accepts the Plus ceiling; the app enforces Free (2 MB) and Plus (4 MB).
 update storage.buckets
-set file_size_limit = 2097152,
+set file_size_limit = 4194304,
     allowed_mime_types = array['audio/webm','audio/mp4','audio/ogg']
 where id = 'speaking-recordings';
 
