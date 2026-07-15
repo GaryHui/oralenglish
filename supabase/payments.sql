@@ -3,11 +3,15 @@ create table if not exists public.subscriptions (
   user_id uuid primary key references auth.users(id) on delete cascade,
   stripe_customer_id text unique,
   stripe_subscription_id text unique,
+  stripe_payment_intent_id text unique,
   status text not null default 'inactive',
   plan text not null default 'free' check (plan in ('free', 'plus')),
   current_period_end timestamptz,
   updated_at timestamptz not null default now()
 );
+
+alter table public.subscriptions
+add column if not exists stripe_payment_intent_id text unique;
 
 alter table public.subscriptions enable row level security;
 create policy "users read own subscription"
