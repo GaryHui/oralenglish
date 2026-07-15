@@ -30,8 +30,14 @@ create policy "users insert own recording rows" on public.speaking_recordings fo
 create policy "users delete own recording rows" on public.speaking_recordings for delete using (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('speaking-recordings', 'speaking-recordings', false, 10485760, array['audio/webm','audio/mp4','audio/ogg'])
+values ('speaking-recordings', 'speaking-recordings', false, 2097152, array['audio/webm','audio/mp4','audio/ogg'])
 on conflict (id) do nothing;
+
+-- Keep existing projects aligned with the free-plan client limit (2 MB per recording).
+update storage.buckets
+set file_size_limit = 2097152,
+    allowed_mime_types = array['audio/webm','audio/mp4','audio/ogg']
+where id = 'speaking-recordings';
 
 create policy "users upload own recordings" on storage.objects for insert to authenticated
 with check (bucket_id = 'speaking-recordings' and (storage.foldername(name))[1] = auth.uid()::text);
