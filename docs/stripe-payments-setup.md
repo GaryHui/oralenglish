@@ -124,4 +124,6 @@ https://oralenglish.vercel.app/api/stripe/webhook
 
 `No such price: 'prod_...'`：把产品 ID 填到了 `STRIPE_PLUS_PRICE_ID`。需要回到产品的 Pricing 区域复制 `price_...`。
 
+`WeChat Pay requires payment_method_options[wechat_pay][client] to be set to web`：网页端 WeChat Pay 必须在 Checkout Session 里设置 `payment_method_options.wechat_pay.client = "web"`。当前代码已经在 `/api/stripe/wallet-checkout` 中设置。
+
 微信/支付宝不显示：先确认当前是一次性付款入口，不是月订阅入口；再确认 Stripe Payment methods 中 Alipay / WeChat Pay 已启用，币种为 CAD，账号处于支持国家或地区。
