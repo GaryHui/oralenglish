@@ -2,12 +2,21 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
 export const requiredEnv = (name: string) => {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is not configured`);
   return value;
 };
 
-export const getStripe = () => new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
+export const getStripe = () => {
+  const key = requiredEnv("STRIPE_SECRET_KEY");
+  if (!/^(sk|rk)_(test|live)_/.test(key)) {
+    throw new Error("STRIPE_SECRET_KEY has an invalid format");
+  }
+  return new Stripe(key, {
+    httpClient: Stripe.createFetchHttpClient(),
+    maxNetworkRetries: 1,
+  });
+};
 export const getAdminSupabase = () => createClient(
   requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
   requiredEnv("SUPABASE_SECRET_KEY"),

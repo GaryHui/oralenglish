@@ -22,6 +22,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: session.url });
   } catch (error) {
     const message = error instanceof Error ? error.message : "无法创建支付页面";
+    console.error("Stripe checkout failed", {
+      name: error instanceof Error ? error.name : "UnknownError",
+      message,
+      code: typeof error === "object" && error && "code" in error ? String(error.code) : undefined,
+    });
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
